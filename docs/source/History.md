@@ -1,4 +1,13 @@
 # History
+- 11/24/2019 : [v0.7.0](https://github.com/shenweichen/DeepCTR/releases/tag/v0.7.0) released.Refactor [feature columns](./Features.html#feature-columns).Different features can use different `embedding_dim` and group-wise interaction is available by setting `group_name`.
+
+- 11/06/2019 : [v0.6.3](https://github.com/shenweichen/DeepCTR/releases/tag/v0.6.3) released.Add `WeightedSequenceLayer` and support [weighted sequence feature input](./Examples.html#multi-value-input-movielens).
+- 10/03/2019 : [v0.6.2](https://github.com/shenweichen/DeepCTR/releases/tag/v0.6.2) released.Simplify the input logic.
+- 09/08/2019 : [v0.6.1](https://github.com/shenweichen/DeepCTR/releases/tag/v0.6.1) released.Fix bugs in `CCPM` and `DynamicGRU`.
+- 08/02/2019 : [v0.6.0](https://github.com/shenweichen/DeepCTR/releases/tag/v0.6.0) released.Now DeepCTR is compatible with tensorflow `1.14` and `2.0.0`. 
+- 07/21/2019 : [v0.5.2](https://github.com/shenweichen/DeepCTR/releases/tag/v0.5.2) released.Refactor `Linear` Layer.
+- 07/10/2019 : [v0.5.1](https://github.com/shenweichen/DeepCTR/releases/tag/v0.5.1) released.Add [FiBiNET](./Features.html#fibinet-feature-importance-and-bilinear-feature-interaction-network).  
+- 06/30/2019 : [v0.5.0](https://github.com/shenweichen/DeepCTR/releases/tag/v0.5.0) released.Refactor inputs module. 
 - 05/19/2019 : [v0.4.1](https://github.com/shenweichen/DeepCTR/releases/tag/v0.4.1) released.Add [DSIN](./Features.html#dsin-deep-session-interest-network). 
 - 05/04/2019 : [v0.4.0](https://github.com/shenweichen/DeepCTR/releases/tag/v0.4.0) released.Support [feature hashing on the fly](./Examples.html#classification-criteo-with-feature-hashing-on-the-fly) and python2.7.
 - 04/27/2019 : [v0.3.4](https://github.com/shenweichen/DeepCTR/releases/tag/v0.3.4) released.Add [FGCNN](./Features.html#fgcnn-feature-generation-by-convolutional-neural-network) and `FGCNNLayer`.

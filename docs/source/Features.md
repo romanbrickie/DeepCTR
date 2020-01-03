@@ -2,9 +2,9 @@
 
 ## Overview
 
-With the great success of deep learning,DNN-based techniques have been widely used in CTR estimation task.
+With the great success of deep learning,DNN-based techniques have been widely used in CTR prediction task.
 
-DNN based CTR estimation models consists of the following 4 modules:
+DNN based CTR prediction models usually have following 4 modules:
 `Input,Embedding,Low-order&High-order Feature Extractor,Prediction`
 
 - Input&Embedding
@@ -20,6 +20,41 @@ DNN based CTR estimation models consists of the following 4 modules:
  > Low-order Extractor learns feature interaction through  product between vectors.Factorization-Machine and it's variants are widely used to learn the low-order feature interaction.
 
  > High-order Extractor learns feature combination through complex neural network functions like MLP,Cross Net,etc.
+
+## Feature Columns
+### SparseFeat
+``SparseFeat`` is a namedtuple with signature ``SparseFeat(name, vocabulary_size, embedding_dim, use_hash, dtype,embedding_name, group_name)``
+
+- name : feature name
+- vocabulary_size : number of unique feature values for sprase feature or hashing space when `use_hash=True`
+- embedding_dim : embedding dimension
+- use_hash : defualt `False`.If `True` the input will be hashed to space of size `vocabulary_size`.
+- dtype : default `float32`.dtype of input tensor.
+- embedding_name : default `None`. If None, the embedding_name will be same as `name`.
+- group_name : feature group of this feature.
+
+### DenseFeat
+``DenseFeat`` is a namedtuple with signature ``DenseFeat(name, dimension, dtype)``
+
+- name : feature name
+- dimension : dimension of dense feature vector.
+- dtype : default `float32`.dtype of input tensor.
+
+### VarLenSparseFeat
+
+``VarLenSparseFeat`` is a namedtuple with signature ``VarLenSparseFeat(name, maxlen, vocabulary_size, embedding_dim, combiner,use_hash, dtype, length_name,weight_name, embedding_name, group_name)``
+
+- name : feature name
+- maxlen : maximum length of this feature for all samples
+- vocabulary_size : number of unique feature values for sprase feature or hashing space when `use_hash=True`
+- embedding_dim : embedding dimension
+- combiner : pooling method,can be ``sum``,``mean`` or ``max``
+- use_hash : defualt `False`.if `True` the input will be hashed to space of size `vocabulary_size`.
+- dtype : default `float32`.dtype of input tensor.
+- length_name : feature length name,if `None`, value 0 in feature is for padding.
+- weight_name : default `None`. If not None, the sequence feature will be multiplyed by the feature whose name is `weight_name`.
+- embedding_name : default `None`. If None, the `embedding_name` will be same as `name`.
+- group_name : feature group of this feature.
 
 ## Models
 
@@ -192,7 +227,7 @@ By stacking multiple interacting layers,AutoInt is able to model different order
 
 [Song W, Shi C, Xiao Z, et al. AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks[J]. arXiv preprint arXiv:1810.11921, 2018.](https://arxiv.org/abs/1810.11921)
 
-### NFFM(Field-aware Neural Factorization Machine)
+### NFFM(Operation-aware Neural Networks for User Response Prediction)
 
 NFFM models second order feature interactions like like FFM and preserves second-order interaction information  as much as possible.Further more,deep neural network is used to learn higher-ordered feature interactions. 
 
@@ -200,7 +235,7 @@ NFFM models second order feature interactions like like FFM and preserves second
 
 ![NFFM](../pics/NFFM.png)
 
-[Zhang L, Shen W, Li S, et al. Field-aware Neural Factorization Machine for Click-Through Rate Prediction[J]. arXiv preprint arXiv:1902.09096, 2019.](https://arxiv.org/pdf/1902.09096.pdf)
+[Yang Y, Xu B, Shen F, et al. Operation-aware Neural Networks for User Response Prediction[J]. arXiv preprint arXiv:1904.12579, 2019.](https://arxiv.org/pdf/1904.12579.pdf)
 
 ### FGCNN(Feature Generation by Convolutional Neural Network)
 
@@ -223,6 +258,17 @@ Deep Session Interest Network (DSIN) extracts users' multiple historical session
 ![DSIN](../pics/DSIN.png)
 
 [Feng Y, Lv F, Shen W, et al. Deep Session Interest Network for Click-Through Rate Prediction[J]. arXiv preprint arXiv:1905.06482, 2019.](https://arxiv.org/abs/1905.06482)
+
+### FiBiNET(Feature Importance and Bilinear feature Interaction NETwork)
+
+Feature Importance and Bilinear feature Interaction NETwork is proposed to dynamically learn the feature importance and fine-grained feature interactions. On the one hand, the FiBiNET can dynamically learn the importance of fea- tures via the Squeeze-Excitation network (SENET) mechanism; on the other hand, it is able to effectively learn the feature interactions via bilinear function.
+
+[**FiBiNET Model API**](./deepctr.models.fibinet.html)  
+
+![FiBiNET](../pics/FiBiNET.png)
+
+[Huang T, Zhang Z, Zhang J. FiBiNET: Combining Feature Importance and Bilinear feature Interaction for Click-Through Rate Prediction[J]. arXiv preprint arXiv:1905.09433, 2019.](https://arxiv.org/pdf/1905.09433.pdf)
+
 
 ## Layers
 

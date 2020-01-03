@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import inspect
 import sys
+import os
 
 import numpy as np
 import  tensorflow as tf
@@ -10,52 +11,73 @@ from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.layers import Input, Masking
 from tensorflow.python.keras.models import Model, load_model, save_model
 
-from deepctr.utils import SingleFeat, VarLenFeat
+from deepctr.inputs import SparseFeat, DenseFeat,VarLenSparseFeat
 from deepctr.layers import  custom_objects
 
-SAMPLE_SIZE=32
+SAMPLE_SIZE=8
+VOCABULARY_SIZE = 4
 
 def gen_sequence(dim, max_len, sample_size):
     return np.array([np.random.randint(0, dim, max_len) for _ in range(sample_size)]), np.random.randint(1, max_len + 1, sample_size)
 
 
-def get_test_data(sample_size=1000, sparse_feature_num=1, dense_feature_num=1, sequence_feature=('max', 'mean', 'sum'),
-                  classification=True, include_length=False, hash_flag=False):
+def get_test_data(sample_size=1000, embedding_size=4, sparse_feature_num=1, dense_feature_num=1,
+                  sequence_feature=['sum', 'mean', 'max', 'weight'], classification=True, include_length=False,
+                  hash_flag=False, prefix=''):
 
-    feature_dim_dict = {"sparse": [], 'dense': [], 'sequence': []}
+
+    feature_columns = []
+    model_input = {}
+
+
+    if 'weight'  in sequence_feature:
+        feature_columns.append(VarLenSparseFeat(prefix+"weighted_seq",maxlen=3,vocabulary_size=2,embedding_dim=embedding_size,length_name=prefix+"weighted_seq"+"_seq_length",weight_name=prefix+"weight"))
+        s_input, s_len_input = gen_sequence(
+            2, 3, sample_size)
+
+        model_input[prefix+"weighted_seq"] = s_input
+        model_input[prefix+'weight'] = np.random.randn(sample_size,3,1)
+        model_input[prefix+"weighted_seq"+"_seq_length"] = s_len_input
+        sequence_feature.pop(sequence_feature.index('weight'))
+
 
     for i in range(sparse_feature_num):
         dim = np.random.randint(1, 10)
-        feature_dim_dict['sparse'].append(SingleFeat('sparse_'+str(i), dim,hash_flag,tf.int32))
+        feature_columns.append(SparseFeat(prefix+'sparse_feature_'+str(i), dim,embedding_size,use_hash=hash_flag,dtype=tf.int32))
     for i in range(dense_feature_num):
-        feature_dim_dict['dense'].append(SingleFeat('dense_'+str(i), 0,False,tf.float32))
+        feature_columns.append(DenseFeat(prefix+'dense_feature_'+str(i), 1,dtype=tf.float32))
     for i, mode in enumerate(sequence_feature):
         dim = np.random.randint(1, 10)
         maxlen = np.random.randint(1, 10)
-        feature_dim_dict['sequence'].append(
-            VarLenFeat('sequence_' + str(i), dim, maxlen, mode))
+        feature_columns.append(
+            VarLenSparseFeat(prefix +'sequence_' + mode, maxlen=maxlen,vocabulary_size=dim,  embedding_dim=embedding_size, combiner=mode))
 
-    sparse_input = [np.random.randint(0, dim, sample_size)
-                    for feat, dim,_,_ in feature_dim_dict['sparse']]
-    dense_input = [np.random.random(sample_size)
-                   for _ in feature_dim_dict['dense']]
-    sequence_input = []
-    sequence_len_input = []
-    for var in feature_dim_dict['sequence']:
-        s_input, s_len_input = gen_sequence(
-            var.dimension, var.maxlen, sample_size)
-        sequence_input.append(s_input)
-        sequence_len_input.append(s_len_input)
+
+
+    for fc in feature_columns:
+        if isinstance(fc,SparseFeat):
+            model_input[fc.name]= np.random.randint(0, fc.vocabulary_size, sample_size)
+        elif isinstance(fc,DenseFeat):
+            model_input[fc.name] = np.random.random(sample_size)
+        else:
+            s_input, s_len_input = gen_sequence(
+                fc.vocabulary_size, fc.maxlen, sample_size)
+            model_input[fc.name] = s_input
+            if include_length:
+                fc.length_name = prefix+"sequence_"+str(i)+'_seq_length'
+                model_input[prefix+"sequence_"+str(i)+'_seq_length'] = s_len_input
+
+
+
+
+
+
     if classification:
         y = np.random.randint(0, 2, sample_size)
     else:
         y = np.random.random(sample_size)
 
-    x = sparse_input + dense_input + sequence_input
-    if include_length:
-        x += sequence_len_input
-
-    return x, y, feature_dim_dict
+    return model_input, y, feature_columns
 
 
 def layer_test(layer_cls, kwargs={}, input_shape=None, input_dtype=None,
@@ -333,10 +355,12 @@ def check_model(model, model_name, x, y,check_model_io=True):
     print(model_name+" test train valid pass!")
     model.save_weights(model_name + '_weights.h5')
     model.load_weights(model_name + '_weights.h5')
+    os.remove(model_name + '_weights.h5')
     print(model_name+" test save load weight pass!")
     if check_model_io:
         save_model(model, model_name + '.h5')
         model = load_model(model_name + '.h5', custom_objects)
+        os.remove(model_name + '.h5')
         print(model_name + " test save load model pass!")
 
     print(model_name + " test pass!")

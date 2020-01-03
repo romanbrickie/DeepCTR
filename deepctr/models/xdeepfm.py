@@ -8,20 +8,20 @@ Reference:
 """
 import tensorflow as tf
 
-from ..input_embedding import preprocess_input_embedding, get_linear_logit
+from ..inputs import input_from_feature_columns, get_linear_logit, build_input_features, combined_dnn_input
 from ..layers.core import PredictionLayer, DNN
 from ..layers.interaction import CIN
-from ..layers.utils import concat_fun
-from ..utils import check_feature_config_dict
+from ..layers.utils import concat_func, add_func
 
 
-def xDeepFM(feature_dim_dict, embedding_size=8, dnn_hidden_units=(256, 256), cin_layer_size=(128, 128,), cin_split_half=True,
-            cin_activation='relu', l2_reg_linear=0.00001, l2_reg_embedding=0.00001, l2_reg_dnn=0, l2_reg_cin=0,
-            init_std=0.0001, seed=1024, dnn_dropout=0, dnn_activation='relu', dnn_use_bn=False, task='binary', ):
+def xDeepFM(linear_feature_columns, dnn_feature_columns, dnn_hidden_units=(256, 256),
+            cin_layer_size=(128, 128,), cin_split_half=True, cin_activation='relu', l2_reg_linear=0.00001,
+            l2_reg_embedding=0.00001, l2_reg_dnn=0, l2_reg_cin=0, init_std=0.0001, seed=1024, dnn_dropout=0,
+            dnn_activation='relu', dnn_use_bn=False, task='binary'):
     """Instantiates the xDeepFM architecture.
 
-    :param feature_dim_dict: dict,to indicate sparse field and dense field like {'sparse':{'field_1':4,'field_2':3,'field_3':2},'dense':['field_4','field_5']}
-    :param embedding_size: positive integer,sparse feature embedding_size
+    :param linear_feature_columns: An iterable containing all the features used by linear part of the model.
+    :param dnn_feature_columns: An iterable containing all the features used by deep part of the model.
     :param dnn_hidden_units: list,list of positive integer or empty list, the layer number and units in each layer of deep net
     :param cin_layer_size: list,list of positive integer or empty list, the feature maps  in each hidden layer of Compressed Interaction Network
     :param cin_split_half: bool.if set to True, half of the feature maps in each hidden will connect to output unit
@@ -38,41 +38,33 @@ def xDeepFM(feature_dim_dict, embedding_size=8, dnn_hidden_units=(256, 256), cin
     :param task: str, ``"binary"`` for  binary logloss or  ``"regression"`` for regression loss
     :return: A Keras model instance.
     """
-    check_feature_config_dict(feature_dim_dict)
 
-    deep_emb_list, linear_emb_list, dense_input_dict, inputs_list = preprocess_input_embedding(feature_dim_dict,
-                                                                                               embedding_size,
-                                                                                               l2_reg_embedding,
-                                                                                               l2_reg_linear, init_std,
-                                                                                               seed,
-                                                                                               create_linear_weight=True)
+    features = build_input_features(
+        linear_feature_columns + dnn_feature_columns)
 
-    linear_logit = get_linear_logit(linear_emb_list, dense_input_dict, l2_reg_linear)
+    inputs_list = list(features.values())
 
-    fm_input = concat_fun(deep_emb_list, axis=1)
+    sparse_embedding_list, dense_value_list = input_from_feature_columns(features, dnn_feature_columns,
+                                                                         l2_reg_embedding, init_std, seed)
+
+    linear_logit = get_linear_logit(features, linear_feature_columns, init_std=init_std, seed=seed, prefix='linear',
+                                    l2_reg=l2_reg_linear)
+
+    fm_input = concat_func(sparse_embedding_list, axis=1)
+
+    dnn_input = combined_dnn_input(sparse_embedding_list, dense_value_list)
+    dnn_output = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout,
+                     dnn_use_bn, seed)(dnn_input)
+    dnn_logit = tf.keras.layers.Dense(
+        1, use_bias=False, activation=None)(dnn_output)
+
+    final_logit = add_func([linear_logit, dnn_logit])
 
     if len(cin_layer_size) > 0:
         exFM_out = CIN(cin_layer_size, cin_activation,
                        cin_split_half, l2_reg_cin, seed)(fm_input)
         exFM_logit = tf.keras.layers.Dense(1, activation=None, )(exFM_out)
-
-    deep_input = tf.keras.layers.Flatten()(fm_input)
-    deep_out = DNN(dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout,
-                   dnn_use_bn, seed)(deep_input)
-    deep_logit = tf.keras.layers.Dense(
-        1, use_bias=False, activation=None)(deep_out)
-
-    if len(dnn_hidden_units) == 0 and len(cin_layer_size) == 0:  # only linear
-        final_logit = linear_logit
-    elif len(dnn_hidden_units) == 0 and len(cin_layer_size) > 0:  # linear + CIN
-        final_logit = tf.keras.layers.add([linear_logit, exFM_logit])
-    elif len(dnn_hidden_units) > 0 and len(cin_layer_size) == 0:  # linear +　Deep
-        final_logit = tf.keras.layers.add([linear_logit, deep_logit])
-    elif len(dnn_hidden_units) > 0 and len(cin_layer_size) > 0:  # linear + CIN + Deep
-        final_logit = tf.keras.layers.add(
-            [linear_logit, deep_logit, exFM_logit])
-    else:
-        raise NotImplementedError
+        final_logit = add_func([final_logit, exFM_logit])
 
     output = PredictionLayer(task)(final_logit)
 

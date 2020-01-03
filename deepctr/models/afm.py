@@ -11,20 +11,20 @@ Reference:
 """
 import tensorflow as tf
 
-from ..input_embedding import preprocess_input_embedding, get_linear_logit
+from ..inputs import input_from_feature_columns, get_linear_logit, build_input_features, DEFAULT_GROUP_NAME
 from ..layers.core import PredictionLayer
 from ..layers.interaction import AFMLayer, FM
-from ..layers.utils import concat_fun
-from ..utils import check_feature_config_dict
+from ..layers.utils import concat_func, add_func
 
 
-def AFM(feature_dim_dict, embedding_size=8, use_attention=True, attention_factor=8,
+def AFM(linear_feature_columns, dnn_feature_columns, fm_group=DEFAULT_GROUP_NAME, use_attention=True, attention_factor=8,
         l2_reg_linear=1e-5, l2_reg_embedding=1e-5, l2_reg_att=1e-5, afm_dropout=0, init_std=0.0001, seed=1024,
-        task='binary', ):
-    """Instantiates the Attentonal Factorization Machine architecture.
+        task='binary'):
+    """Instantiates the Attentional Factorization Machine architecture.
 
-    :param feature_dim_dict: dict,to indicate sparse field and dense field like {'sparse':{'field_1':4,'field_2':3,'field_3':2},'dense':['field_4','field_5']}
-    :param embedding_size: positive integer,sparse feature embedding_size
+    :param linear_feature_columns: An iterable containing all the features used by linear part of the model.
+    :param dnn_feature_columns: An iterable containing all the features used by deep part of the model.
+    :param fm_group: list, group_name of features that will be used to do feature interactions.
     :param use_attention: bool,whether use attention or not,if set to ``False``.it is the same as **standard Factorization Machine**
     :param attention_factor: positive integer,units in attention net
     :param l2_reg_linear: float. L2 regularizer strength applied to linear part
@@ -37,25 +37,25 @@ def AFM(feature_dim_dict, embedding_size=8, use_attention=True, attention_factor
     :return: A Keras model instance.
     """
 
-    check_feature_config_dict(feature_dim_dict)
+    features = build_input_features(
+        linear_feature_columns + dnn_feature_columns)
 
-    deep_emb_list, linear_emb_list, dense_input_dict, inputs_list = preprocess_input_embedding(feature_dim_dict,
-                                                                                               embedding_size,
-                                                                                               l2_reg_embedding,
-                                                                                               l2_reg_linear, init_std,
-                                                                                               seed,
-                                                                                               create_linear_weight=True)
+    inputs_list = list(features.values())
 
-    linear_logit = get_linear_logit(linear_emb_list, dense_input_dict, l2_reg_linear)
+    group_embedding_dict, _ = input_from_feature_columns(features, dnn_feature_columns, l2_reg_embedding, init_std,
+                                                         seed, support_dense=False, support_group=True)
 
-    fm_input = concat_fun(deep_emb_list, axis=1)
+    linear_logit = get_linear_logit(features, linear_feature_columns, init_std=init_std, seed=seed, prefix='linear',
+                                    l2_reg=l2_reg_linear)
+
     if use_attention:
-        fm_logit = AFMLayer(attention_factor, l2_reg_att, afm_dropout,
-        seed)(deep_emb_list,)
+        fm_logit = add_func([AFMLayer(attention_factor, l2_reg_att, afm_dropout,
+                                      seed)(list(v)) for k, v in group_embedding_dict.items() if k in fm_group])
     else:
-        fm_logit = FM()(fm_input)
+        fm_logit = add_func([FM()(concat_func(v, axis=1))
+                             for k, v in group_embedding_dict.items() if k in fm_group])
 
-    final_logit = tf.keras.layers.add([linear_logit, fm_logit])
+    final_logit = add_func([linear_logit, fm_logit])
     output = PredictionLayer(task)(final_logit)
 
     model = tf.keras.models.Model(inputs=inputs_list, outputs=output)

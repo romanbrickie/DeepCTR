@@ -147,6 +147,8 @@ class DNN(Layer):
         super(DNN, self).__init__(**kwargs)
 
     def build(self, input_shape):
+        # if len(self.hidden_units) == 0:
+        #     raise ValueError("hidden_units is empty")
         input_size = input_shape[-1]
         hidden_units = [int(input_size)] + list(self.hidden_units)
         self.kernels = [self.add_weight(name='kernel' + str(i),
@@ -213,8 +215,8 @@ class PredictionLayer(Layer):
     """
 
     def __init__(self, task='binary', use_bias=True, **kwargs):
-        if task not in ["binary", "regression"]:
-            raise ValueError("task must be binary or regression")
+        if task not in ["binary", "multiclass", "regression"]:
+            raise ValueError("task must be binary,multiclass or regression")
         self.task = task
         self.use_bias = use_bias
         super(PredictionLayer, self).__init__(**kwargs)
